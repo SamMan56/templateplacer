@@ -6,6 +6,7 @@ import net.minecraft.block.Blocks
 import net.minecraft.text.Text
 import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.Direction
+import net.minecraft.util.math.Vec3d
 
 @Suppress("UNUSED")
 object TemplatePlacer: ModInitializer {
@@ -34,7 +35,6 @@ object TemplatePlacer: ModInitializer {
                     }
                 }
 
-
                 // TODO: add a check if they holding iron ingot
 
                 val borderBlock = Blocks.STONE
@@ -46,46 +46,28 @@ object TemplatePlacer: ModInitializer {
                 val south = Direction.WEST
                 val west = Direction.NORTH
 
-                // find grass block below player
-                val floorPos = player.blockPos.withY(49)
+                stepByStep {
+                    tryTo { // initial burst of speed
+                        player.velocity = Vec3d(0.0, 0.0, -1.0)
 
-                // find top left corner of codespace
-                var topLeftPos = BlockPos(floorPos)
-                // this should move onto the border
-                limitedWhile({ isBlock(topLeftPos, floorBlock) }) {
-                    topLeftPos = topLeftPos.offset(west)
+                        Result.SUCCESS
+                    }
+                    tryTo {
+                        if (player.velocity.z > -0.2) { // if they hit a wall
+                            printToClient("Couldn't navigate back to the codespace root!")
+                            return@tryTo Result.FAIL
+                        }
+
+                        player.velocity = Vec3d(0.0, 0.0, -1.0)
+
+                        // find grass block below player
+                        val floorPos = player.blockPos.withY(49)
+
+                        if (isBlock(floorPos, borderBlock))
+                            Result.SUCCESS
+                        else Result.KEEP_TRYING
+                    }
                 }
-                // then move up off the iron border
-                limitedWhile({ isBlock(topLeftPos, borderBlock) }) {
-                    topLeftPos = topLeftPos.offset(north)
-                }
-                // then one back
-                topLeftPos = topLeftPos.offset(south)
-
-
-                // for top right, there is no border to follow, keep moving till find iron again
-                var topRightPos = topLeftPos.offset(east)
-                limitedWhile({ isBlock(topRightPos, floorBlock) }) {
-                    topRightPos = topRightPos.offset(east)
-                }
-
-                // there is a border to follow for backs, keep going along then move one forward
-                var bottomLeftPos = BlockPos(topLeftPos)
-                var bottomRightPos = BlockPos(topRightPos)
-                limitedWhile({ isBlock(bottomLeftPos, borderBlock) }) {
-                    // shift both equally (its a rectangle)
-                    bottomLeftPos = bottomLeftPos.offset(south)
-                    bottomRightPos = bottomRightPos.offset(south)
-                }
-
-                bottomLeftPos = bottomLeftPos.offset(north)
-                bottomRightPos = bottomRightPos.offset(north)
-
-                printToClient(topLeftPos.toString())
-                printToClient(topRightPos.toString())
-                printToClient(bottomLeftPos.toString())
-                printToClient(bottomRightPos.toString())
-                printToClient("")
 
                 1
             }
