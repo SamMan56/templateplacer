@@ -5,17 +5,31 @@ enum class Result {
 }
 
 typealias Work = () -> Result
+typealias Plan = TaskSet.() -> Unit
 
 var currentStepByStep: StepByStep? = null
+var currentTaskSet: TaskSet? = null
 
-class StepByStep(val queue: MutableList<Work> = mutableListOf()) {
-    fun tryTo(work: Work) {
-        queue.add(work)
-    }
-
+class StepByStep(val plans: MutableList<Plan> = mutableListOf()) {
     internal fun run() {
         if (currentStepByStep == null)
             currentStepByStep = this
+    }
+
+    fun addTasks(plan: Plan) {
+        plans.add(plan)
+    }
+
+    fun tryTo(work: Work) {
+        addTasks {
+            tryTo(work)
+        }
+    }
+}
+
+class TaskSet(val queue: MutableList<Work> = mutableListOf()) {
+    fun tryTo(work: Work) {
+        queue.add(work)
     }
 }
 
@@ -27,19 +41,35 @@ fun stepByStep(f: StepByStep.() -> Unit) {
 
 fun tick() {
     val checkStepByStep = currentStepByStep
+    val checkTaskSet = currentTaskSet
     if (checkStepByStep != null) {
-        if (checkStepByStep.queue.size > 0) {
-            val task = checkStepByStep.queue[0]
+        if (checkTaskSet != null) {
+            if (checkTaskSet.queue.size > 0) {
+                val work = checkTaskSet.queue[0]
 
-            val result = task()
+                val result = work()
 
-            when (result) {
-                Result.SUCCESS -> checkStepByStep.queue.removeAt(0)
-                Result.KEEP_TRYING -> {} // try again next tick
-                Result.FAIL -> currentStepByStep = null
+                when (result) {
+                    Result.SUCCESS -> checkTaskSet.queue.removeAt(0)
+                    Result.KEEP_TRYING -> {}
+                    Result.FAIL -> currentStepByStep = null
+                }
+
+                if (checkTaskSet.queue.size == 0) currentTaskSet = null
             }
         } else {
-            currentStepByStep = null
+            if (checkStepByStep.plans.size > 0) {
+                val plan = checkStepByStep.plans[0]
+
+                val taskSet = TaskSet()
+                taskSet.plan()
+
+                currentTaskSet = taskSet
+
+                checkStepByStep.plans.removeAt(0)
+            } else {
+                currentStepByStep = null
+            }
         }
     }
 }

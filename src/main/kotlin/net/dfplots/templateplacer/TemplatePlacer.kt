@@ -53,7 +53,7 @@ object TemplatePlacer: ModInitializer {
                 val south = Direction.WEST
                 val west = Direction.NORTH
 
-                fun StepByStep.waitForInvToOpen(): Unit {
+                fun TaskSet.waitForInvToOpen(): Unit {
                     tryTo {
                         if (client.currentScreen == null)
                             Result.KEEP_TRYING
@@ -61,17 +61,16 @@ object TemplatePlacer: ModInitializer {
                     }
                 }
 
-                fun StepByStep.tryWithScreen(f: (GenericContainerScreen) -> Result) {
+                fun TaskSet.tryWithScreen(f: (GenericContainerScreen) -> Result) {
                     tryTo {
                         val currentScreen = client.currentScreen
-                        if (currentScreen != null && currentScreen is GenericContainerScreen) {
+                        if (currentScreen != null && currentScreen is GenericContainerScreen)
                             f(currentScreen)
-                        }
                         else Result.FAIL
                     }
                 }
 
-                fun StepByStep.clickAndWait(slotId: Int) {
+                fun TaskSet.clickAndWait(slotId: Int) {
                     tryWithScreen { genericContainerScreen ->
                         if (genericContainerScreen.screenHandler.inventory.getStack(slotId).item == Items.AIR)
                             return@tryWithScreen Result.FAIL
@@ -87,12 +86,12 @@ object TemplatePlacer: ModInitializer {
                     }
                     tryWithScreen { genericContainerScreen ->
                         if (player.currentScreenHandler.cursorStack.item != Items.AIR)
-                            return@tryWithScreen Result.KEEP_TRYING // wait until server puts an item there
-                        Result.SUCCESS
+                            Result.KEEP_TRYING // wait until server puts an item there
+                        else Result.SUCCESS
                     }
                 }
 
-                fun StepByStep.clickToClose(slotId: Int) {
+                fun TaskSet.clickToClose(slotId: Int) {
                     tryWithScreen { genericContainerScreen ->
                         printToClient(genericContainerScreen.screenHandler.inventory.getStack(slotId).name.asString())
                         if (genericContainerScreen.screenHandler.inventory.getStack(slotId).item == Items.AIR)
@@ -107,7 +106,8 @@ object TemplatePlacer: ModInitializer {
                         )
                         Result.SUCCESS
                     }
-                    tryWithScreen { genericContainerScreen ->
+                    tryTo {
+                        printToClient("e")
                         if (client.currentScreen != null) Result.KEEP_TRYING
                         else Result.SUCCESS
                     }
@@ -144,17 +144,39 @@ object TemplatePlacer: ModInitializer {
 
                         Result.SUCCESS
                     }
-                    waitForInvToOpen()
+                    addTasks { waitForInvToOpen() }
 
                     // configure clearing settings to plot
-                    clickAndWait(9)
-                    clickAndWait(14)
-                    clickAndWait(15)
-                    clickAndWait(16)
-                    clickAndWait(44)
+                    addTasks { clickAndWait(9) }
+                    addTasks { clickAndWait(14) }
+                    addTasks { clickAndWait(15) }
+                    addTasks { clickAndWait(16) }
+                    addTasks { clickAndWait(44) }
 
                     // press clear
-                    clickToClose(11)
+                    addTasks { clickToClose(11) }
+
+                    addTasks {
+                        printToClient("1")
+
+                        tryTo {
+                            printToClient("2")
+                            Result.SUCCESS
+                        }
+
+                        tryTo {
+                            printToClient("3")
+                            Result.SUCCESS
+                        }
+
+                        Result.SUCCESS
+                    }
+
+                    tryTo {
+                        printToClient("2")
+
+                        Result.SUCCESS
+                    }
                 }
 
                 1

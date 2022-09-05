@@ -45,3 +45,12 @@ tasks {
         withSourcesJar()
     }
 }
+loom {
+    runs {
+        create("samclient") {
+            inherit(maybeCreate("client"))
+
+            programArg("--username SamMan_")
+        }
+    }
+}
