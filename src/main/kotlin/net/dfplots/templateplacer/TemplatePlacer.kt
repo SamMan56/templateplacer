@@ -3,11 +3,16 @@ import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.client.command.v1.ClientCommandManager
 import net.minecraft.block.Block
 import net.minecraft.block.Blocks
+import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen
 import net.minecraft.client.gui.screen.ingame.GenericContainerScreen
 import net.minecraft.inventory.Inventory
+import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
+import net.minecraft.nbt.NbtCompound
 import net.minecraft.screen.slot.SlotActionType
 import net.minecraft.text.Text
+import net.minecraft.util.Hand
+import net.minecraft.util.hit.BlockHitResult
 import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.Direction
 import net.minecraft.util.math.Vec3d
@@ -23,6 +28,7 @@ object TemplatePlacer: ModInitializer {
                 val world = context.source.world
                 val player = context.source.player
                 val client = context.source.client
+                var interactionManager = client.interactionManager
 
                 fun printToClient(message: String) {
                     client.inGameHud.chatHud.addMessage(Text.of(message))
@@ -72,7 +78,7 @@ object TemplatePlacer: ModInitializer {
                 fun StepByStep.clickAndWait(slotId: Int) {
                     tryWithScreen { genericContainerScreen ->
                         if (genericContainerScreen.screenHandler.inventory.getStack(slotId).item == Items.AIR)
-                            return@tryWithScreen Result.FAIL
+                            return@tryWithScreen Result.KEEP_TRYING
 
                         client.interactionManager?.clickSlot(
                             genericContainerScreen.screenHandler.syncId,
@@ -94,7 +100,7 @@ object TemplatePlacer: ModInitializer {
                     tryWithScreen { genericContainerScreen ->
                         printToClient(genericContainerScreen.screenHandler.inventory.getStack(slotId).name.asString())
                         if (genericContainerScreen.screenHandler.inventory.getStack(slotId).item == Items.AIR)
-                            return@tryWithScreen Result.FAIL
+                            return@tryWithScreen Result.KEEP_TRYING
 
                         client.interactionManager?.clickSlot(
                             genericContainerScreen.screenHandler.syncId,
@@ -112,37 +118,17 @@ object TemplatePlacer: ModInitializer {
                     }
                 }
 
+                fun StepByStep.send(message: String) {
+                    work {
+                        player.sendChatMessage(message)
+
+                        Result.SUCCESS
+                    }
+                }
+
                 StepByStep {
-                    work { // initial burst of speed
-                        player.velocity = Vec3d(0.0, 0.0, -1.0)
-
-                        Result.SUCCESS
-                    }
-                    work {
-                        if (player.velocity.z > -0.2) { // if they hit a wall
-                            printToClient("Couldn't navigate back to the codespace root!")
-                            return@work Result.FAIL
-                        }
-
-                        player.velocity = Vec3d(0.0, 0.0, -1.0)
-
-                        // find grass block below player
-                        val floorPos = player.blockPos.withY(49)
-
-                        if (isBlock(floorPos, borderBlock))
-                            Result.SUCCESS
-                        else Result.KEEP_TRYING
-                    }
-                    work { // stop the player flying out of bounds
-                        player.velocity = Vec3d(0.0, 0.0, 0.0)
-
-                        Result.SUCCESS
-                    }
-                    work {
-                        player.sendChatMessage("/plot clear")
-
-                        Result.SUCCESS
-                    }
+                    send("/plot spawn")
+                    send("/plot clear")
                     waitForInvToOpen()
 
                     // configure clearing settings to plot
@@ -155,25 +141,105 @@ object TemplatePlacer: ModInitializer {
                     // press clear
                     clickToClose(11)
 
-                    steps {
-                        printToClient("1")
-
-                        work {
-                            printToClient("2")
-
-                            Result.SUCCESS
-                        }
-
-                        work {
-                            printToClient("3")
-                            Result.SUCCESS
-                        }
-                    }
-
                     work {
-                        printToClient("2")
+                        player.inventory.selectedSlot = 0
 
                         Result.SUCCESS
+                    }
+
+                    // get high enough
+                    work {
+                        if (player.pos.y < 51.9) {
+                            player.velocity = Vec3d(0.0, 0.1, 0.0)
+                            Result.KEEP_TRYING
+                        }
+                        else Result.SUCCESS
+                    }
+                    work {
+                        player.velocity = Vec3d(0.0, 0.0, 0.0)
+                        player.abilities.flying = true
+                        player.sendAbilitiesUpdate()
+
+                        Result.SUCCESS
+                    }
+
+                    work { // initial burst of speed
+                        player.velocity = Vec3d(-1.0, 0.0, 0.0)
+
+                        Result.SUCCESS
+                    }
+                    work {
+                        if (player.velocity.x > -0.2) { // if they hit the edge
+                            Result.SUCCESS
+                        } else {
+                            player.velocity = Vec3d(-1.0, 0.0, 0.0)
+                            Result.KEEP_TRYING
+                        }
+                    }
+                    work { // initial burst of speed
+                        player.velocity = Vec3d(0.0, 0.0, -1.0)
+
+                        Result.SUCCESS
+                    }
+                    work {
+                        if (player.velocity.z > -0.2) { // if they hit the edge
+                            Result.SUCCESS
+                        } else {
+                            player.velocity = Vec3d(0.0, 0.0, -1.0)
+                            Result.KEEP_TRYING
+                        }
+                    }
+                    work {
+                        player.pitch = 90.0F
+                        Result.SUCCESS
+                    }
+
+                    steps {
+                        var placePos = player.blockPos.offset(north, 3).withY(50)
+
+                        player.inventory
+                            .toList()
+                            .filter { itemStack ->
+                                val nbt = itemStack.nbt
+                                val publicBukkitValues = nbt?.get("PublicBukkitValues") as? NbtCompound
+                                val codetemplatedata = publicBukkitValues?.get("hypercube:codetemplatedata")
+
+                                codetemplatedata != null
+                            }
+                            .forEach { codeItemStack ->
+                                steps {
+                                    work {
+                                        if (player.blockPos.x >= placePos.x) {
+                                            Result.SUCCESS
+                                        } else {
+                                            player.velocity = Vec3d(1.0, 0.0, 0.0)
+                                            Result.KEEP_TRYING
+                                        }
+                                    }
+                                    work {
+                                        client.setScreen(CreativeInventoryScreen(player))
+                                        player.inventory.setStack(player.inventory.selectedSlot, codeItemStack)
+                                        player.playerScreenHandler.sendContentUpdates()
+                                        player.closeScreen()
+
+                                        if (client.crosshairTarget !is BlockHitResult)
+                                            return@work Result.FAIL
+
+                                        val blockHitResult = client.crosshairTarget as BlockHitResult
+
+                                        interactionManager?.interactBlock(
+                                            player,
+                                            client.world,
+                                            Hand.MAIN_HAND,
+                                            blockHitResult
+                                        )
+
+                                        placePos = placePos.offset(north, 3)
+
+                                        Result.SUCCESS
+                                    }
+                                }
+                            }
                     }
                 }.start()
 
