@@ -4,72 +4,64 @@ enum class Result {
     SUCCESS, KEEP_TRYING, FAIL
 }
 
-typealias Work = () -> Result
-typealias Plan = TaskSet.() -> Unit
+//typealias Work = () -> Result
 
-var currentStepByStep: StepByStep? = null
-var currentTaskSet: TaskSet? = null
+var currentTask: Task? = null
 
-class StepByStep(val plans: MutableList<Plan> = mutableListOf()) {
-    internal fun run() {
-        if (currentStepByStep == null)
-            currentStepByStep = this
-    }
+sealed interface Task {
+    fun tick(): Result
+}
 
-    fun addTasks(plan: Plan) {
-        plans.add(plan)
-    }
+class Work(val f: () -> Result) : Task {
+    override fun tick(): Result = f()
+}
 
-    fun tryTo(work: Work) {
-        addTasks {
-            tryTo(work)
+class StepByStep(val f: StepByStep.() -> Unit): Task {
+    var generatedTasks = false
+    val tasks: MutableList<Task> = mutableListOf()
+
+    override fun tick(): Result {
+        if (!generatedTasks) {
+            f()
+            generatedTasks = true
         }
+
+        return if (tasks.size > 0) {
+            val result = tasks[0].tick()
+
+            when (result) {
+                Result.SUCCESS -> {
+                    tasks.removeAt(0)
+                    Result.KEEP_TRYING
+                }
+                else -> result
+            }
+        }
+        else Result.SUCCESS
     }
+
+    private fun add(task: Task) {
+        tasks.add(task)
+    }
+
+    fun work(f: () -> Result) = add(Work(f))
+
+    fun steps(f: StepByStep.() -> Unit) = add(StepByStep(f))
 }
 
-class TaskSet(val queue: MutableList<Work> = mutableListOf()) {
-    fun tryTo(work: Work) {
-        queue.add(work)
-    }
-}
-
-fun stepByStep(f: StepByStep.() -> Unit) {
-    val stepByStep = StepByStep()
-    stepByStep.f()
-    stepByStep.run()
+fun Task.start() {
+    currentTask = this
 }
 
 fun tick() {
-    val checkStepByStep = currentStepByStep
-    val checkTaskSet = currentTaskSet
-    if (checkStepByStep != null) {
-        if (checkTaskSet != null) {
-            if (checkTaskSet.queue.size > 0) {
-                val work = checkTaskSet.queue[0]
+    val checkTask = currentTask
 
-                val result = work()
+    if (checkTask != null) {
+        val result = checkTask.tick()
 
-                when (result) {
-                    Result.SUCCESS -> checkTaskSet.queue.removeAt(0)
-                    Result.KEEP_TRYING -> {}
-                    Result.FAIL -> currentStepByStep = null
-                }
-
-                if (checkTaskSet.queue.size == 0) currentTaskSet = null
-            }
-        } else {
-            if (checkStepByStep.plans.size > 0) {
-                val plan = checkStepByStep.plans[0]
-
-                val taskSet = TaskSet()
-                taskSet.plan()
-
-                currentTaskSet = taskSet
-
-                checkStepByStep.plans.removeAt(0)
-            } else {
-                currentStepByStep = null
-            }
+        when (result) {
+            Result.SUCCESS, Result.FAIL -> currentTask = null
+            Result.KEEP_TRYING -> {}
         }
     }
 }

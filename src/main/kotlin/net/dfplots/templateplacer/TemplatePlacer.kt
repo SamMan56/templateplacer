@@ -5,7 +5,6 @@ import net.minecraft.block.Block
 import net.minecraft.block.Blocks
 import net.minecraft.client.gui.screen.ingame.GenericContainerScreen
 import net.minecraft.inventory.Inventory
-import net.minecraft.item.Item
 import net.minecraft.item.Items
 import net.minecraft.screen.slot.SlotActionType
 import net.minecraft.text.Text
@@ -53,16 +52,16 @@ object TemplatePlacer: ModInitializer {
                 val south = Direction.WEST
                 val west = Direction.NORTH
 
-                fun TaskSet.waitForInvToOpen(): Unit {
-                    tryTo {
+                fun StepByStep.waitForInvToOpen() {
+                    work {
                         if (client.currentScreen == null)
                             Result.KEEP_TRYING
                         else Result.SUCCESS
                     }
                 }
 
-                fun TaskSet.tryWithScreen(f: (GenericContainerScreen) -> Result) {
-                    tryTo {
+                fun StepByStep.tryWithScreen(f: (GenericContainerScreen) -> Result) {
+                    work {
                         val currentScreen = client.currentScreen
                         if (currentScreen != null && currentScreen is GenericContainerScreen)
                             f(currentScreen)
@@ -70,7 +69,7 @@ object TemplatePlacer: ModInitializer {
                     }
                 }
 
-                fun TaskSet.clickAndWait(slotId: Int) {
+                fun StepByStep.clickAndWait(slotId: Int) {
                     tryWithScreen { genericContainerScreen ->
                         if (genericContainerScreen.screenHandler.inventory.getStack(slotId).item == Items.AIR)
                             return@tryWithScreen Result.FAIL
@@ -91,7 +90,7 @@ object TemplatePlacer: ModInitializer {
                     }
                 }
 
-                fun TaskSet.clickToClose(slotId: Int) {
+                fun StepByStep.clickToClose(slotId: Int) {
                     tryWithScreen { genericContainerScreen ->
                         printToClient(genericContainerScreen.screenHandler.inventory.getStack(slotId).name.asString())
                         if (genericContainerScreen.screenHandler.inventory.getStack(slotId).item == Items.AIR)
@@ -106,23 +105,23 @@ object TemplatePlacer: ModInitializer {
                         )
                         Result.SUCCESS
                     }
-                    tryTo {
+                    work {
                         printToClient("e")
                         if (client.currentScreen != null) Result.KEEP_TRYING
                         else Result.SUCCESS
                     }
                 }
 
-                stepByStep {
-                    tryTo { // initial burst of speed
+                StepByStep {
+                    work { // initial burst of speed
                         player.velocity = Vec3d(0.0, 0.0, -1.0)
 
                         Result.SUCCESS
                     }
-                    tryTo {
+                    work {
                         if (player.velocity.z > -0.2) { // if they hit a wall
                             printToClient("Couldn't navigate back to the codespace root!")
-                            return@tryTo Result.FAIL
+                            return@work Result.FAIL
                         }
 
                         player.velocity = Vec3d(0.0, 0.0, -1.0)
@@ -134,50 +133,49 @@ object TemplatePlacer: ModInitializer {
                             Result.SUCCESS
                         else Result.KEEP_TRYING
                     }
-                    tryTo { // stop the player flying out of bounds
+                    work { // stop the player flying out of bounds
                         player.velocity = Vec3d(0.0, 0.0, 0.0)
 
                         Result.SUCCESS
                     }
-                    tryTo {
+                    work {
                         player.sendChatMessage("/plot clear")
 
                         Result.SUCCESS
                     }
-                    addTasks { waitForInvToOpen() }
+                    waitForInvToOpen()
 
                     // configure clearing settings to plot
-                    addTasks { clickAndWait(9) }
-                    addTasks { clickAndWait(14) }
-                    addTasks { clickAndWait(15) }
-                    addTasks { clickAndWait(16) }
-                    addTasks { clickAndWait(44) }
+                    clickAndWait(9)
+                    clickAndWait(14)
+                    clickAndWait(15)
+                    clickAndWait(16)
+                    clickAndWait(44)
 
                     // press clear
-                    addTasks { clickToClose(11) }
+                    clickToClose(11)
 
-                    addTasks {
+                    steps {
                         printToClient("1")
 
-                        tryTo {
+                        work {
                             printToClient("2")
+
                             Result.SUCCESS
                         }
 
-                        tryTo {
+                        work {
                             printToClient("3")
                             Result.SUCCESS
                         }
-
-                        Result.SUCCESS
                     }
 
-                    tryTo {
+                    work {
                         printToClient("2")
 
                         Result.SUCCESS
                     }
-                }
+                }.start()
 
                 1
             }
