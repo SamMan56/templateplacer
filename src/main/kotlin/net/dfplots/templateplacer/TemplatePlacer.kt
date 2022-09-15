@@ -161,7 +161,7 @@ object TemplatePlacer: ModInitializer {
                     }
 
                     // get high enough
-                    setVelocityUntil(Vec3d(0.0, 0.1, 0.0)) { player.pos.y >= 51.9 }
+                    setVelocityUntil(Vec3d(0.0, 0.7, 0.0)) { player.pos.y >= 51.9 }
                     justDo {
                         player.abilities.flying = true
                         player.sendAbilitiesUpdate()
@@ -217,7 +217,7 @@ object TemplatePlacer: ModInitializer {
                                 }
                                 steps {
                                     if (i == 6) {
-                                        send("/plot codespace add -c -l")
+                                        send("/plot codespace add -c")
 
                                         setVelocityUntil(Vec3d(-1.0, 0.0, 0.0)) { player.velocity.x == 0.0 }
 
@@ -225,7 +225,7 @@ object TemplatePlacer: ModInitializer {
                                             routePos = routePos.withAxis(Direction.Axis.Y, routePos.y + 5)
                                         }
 
-                                        setVelocityUntil(Vec3d(0.0, 0.1, 0.0)) {player.y >= routePos.y}
+                                        setVelocityUntil(Vec3d(0.0, 0.7, 0.0)) {player.y >= routePos.y}
 
                                         justDo {
                                             i = 0
