@@ -6,7 +6,6 @@ import net.minecraft.block.Blocks
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen
 import net.minecraft.client.gui.screen.ingame.GenericContainerScreen
 import net.minecraft.inventory.Inventory
-import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
 import net.minecraft.nbt.NbtCompound
 import net.minecraft.screen.slot.SlotActionType
@@ -126,6 +125,24 @@ object TemplatePlacer: ModInitializer {
                     }
                 }
 
+                fun StepByStep.setVelocityUntil(vec3d: Vec3d, pred: () -> Boolean) {
+                    work {
+                        player.velocity = vec3d
+
+                        Result.SUCCESS
+                    }
+                    work {
+                        if (pred()) {
+                            player.velocity = Vec3d(0.0, 0.0, 0.0)
+                            Result.SUCCESS
+                        }
+                        else {
+                            player.velocity = vec3d
+                            Result.KEEP_TRYING
+                        }
+                    }
+                }
+
                 StepByStep {
                     send("/plot spawn")
                     send("/plot clear")
@@ -148,54 +165,29 @@ object TemplatePlacer: ModInitializer {
                     }
 
                     // get high enough
+                    setVelocityUntil(Vec3d(0.0, 0.1, 0.0)) { player.pos.y >= 51.9 }
                     work {
-                        if (player.pos.y < 51.9) {
-                            player.velocity = Vec3d(0.0, 0.1, 0.0)
-                            Result.KEEP_TRYING
-                        }
-                        else Result.SUCCESS
-                    }
-                    work {
-                        player.velocity = Vec3d(0.0, 0.0, 0.0)
                         player.abilities.flying = true
                         player.sendAbilitiesUpdate()
 
                         Result.SUCCESS
                     }
 
-                    work { // initial burst of speed
-                        player.velocity = Vec3d(-1.0, 0.0, 0.0)
+                    setVelocityUntil(Vec3d(-1.0, 0.0, 0.0)) { player.velocity.x == 0.0 }
+                    setVelocityUntil(Vec3d(0.0, 0.0, -1.0)) { player.velocity.z == 0.0 }
 
-                        Result.SUCCESS
-                    }
-                    work {
-                        if (player.velocity.x > -0.2) { // if they hit the edge
-                            Result.SUCCESS
-                        } else {
-                            player.velocity = Vec3d(-1.0, 0.0, 0.0)
-                            Result.KEEP_TRYING
-                        }
-                    }
-                    work { // initial burst of speed
-                        player.velocity = Vec3d(0.0, 0.0, -1.0)
-
-                        Result.SUCCESS
-                    }
-                    work {
-                        if (player.velocity.z > -0.2) { // if they hit the edge
-                            Result.SUCCESS
-                        } else {
-                            player.velocity = Vec3d(0.0, 0.0, -1.0)
-                            Result.KEEP_TRYING
-                        }
-                    }
                     work {
                         player.pitch = 90.0F
                         Result.SUCCESS
                     }
 
                     steps {
-                        var placePos = player.blockPos.offset(north, 3).withY(50)
+                        var routePos = Vec3d
+                            .of(player.blockPos.offset(north, 3))
+                            .withAxis(Direction.Axis.Y, 51.9)
+
+                        val startPos = Vec3d(routePos.x, routePos.y, routePos.z)
+                        var i = 0
 
                         player.inventory
                             .toList()
@@ -207,36 +199,41 @@ object TemplatePlacer: ModInitializer {
                                 codetemplatedata != null
                             }
                             .forEach { codeItemStack ->
+                                setVelocityUntil(Vec3d(1.0, 0.0, 0.0)) {player.blockPos.x >= routePos.x}
+                                work {
+                                    client.setScreen(CreativeInventoryScreen(player))
+                                    player.inventory.setStack(player.inventory.selectedSlot, codeItemStack)
+                                    player.playerScreenHandler.sendContentUpdates()
+                                    player.closeScreen()
+
+                                    if (client.crosshairTarget !is BlockHitResult)
+                                        return@work Result.FAIL
+
+                                    val blockHitResult = client.crosshairTarget as BlockHitResult
+
+                                    interactionManager?.interactBlock(
+                                        player,
+                                        client.world,
+                                        Hand.MAIN_HAND,
+                                        blockHitResult
+                                    )
+
+                                    routePos = routePos.withAxis(Direction.Axis.X, routePos.x + 3)
+                                    i++
+                                    Result.SUCCESS
+                                }
                                 steps {
-                                    work {
-                                        if (player.blockPos.x >= placePos.x) {
-                                            Result.SUCCESS
-                                        } else {
-                                            player.velocity = Vec3d(1.0, 0.0, 0.0)
-                                            Result.KEEP_TRYING
-                                        }
-                                    }
-                                    work {
-                                        client.setScreen(CreativeInventoryScreen(player))
-                                        player.inventory.setStack(player.inventory.selectedSlot, codeItemStack)
-                                        player.playerScreenHandler.sendContentUpdates()
-                                        player.closeScreen()
+                                    if (i == 6) {
+                                        send("/plot codespace add -c -l")
 
-                                        if (client.crosshairTarget !is BlockHitResult)
-                                            return@work Result.FAIL
+                                        setVelocityUntil(Vec3d(-1.0, 0.0, 0.0)) { player.velocity.x == 0.0 }
 
-                                        val blockHitResult = client.crosshairTarget as BlockHitResult
+                                        routePos = routePos.withAxis(Direction.Axis.Y, routePos.y + 5)
 
-                                        interactionManager?.interactBlock(
-                                            player,
-                                            client.world,
-                                            Hand.MAIN_HAND,
-                                            blockHitResult
-                                        )
+                                        setVelocityUntil(Vec3d(0.0, 0.1, 0.0)) {player.y >= routePos.y}
 
-                                        placePos = placePos.offset(north, 3)
-
-                                        Result.SUCCESS
+                                        i = 0
+                                        routePos = routePos.withAxis(Direction.Axis.X, startPos.x)
                                     }
                                 }
                             }
