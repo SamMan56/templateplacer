@@ -118,10 +118,8 @@ object TemplatePlacer: ModInitializer {
                 }
 
                 fun StepByStep.send(message: String) {
-                    work {
+                    justDo {
                         player.sendChatMessage(message)
-
-                        Result.SUCCESS
                     }
                 }
 
@@ -158,27 +156,22 @@ object TemplatePlacer: ModInitializer {
                     // press clear
                     clickToClose(11)
 
-                    work {
+                    justDo {
                         player.inventory.selectedSlot = 0
-
-                        Result.SUCCESS
                     }
 
                     // get high enough
                     setVelocityUntil(Vec3d(0.0, 0.1, 0.0)) { player.pos.y >= 51.9 }
-                    work {
+                    justDo {
                         player.abilities.flying = true
                         player.sendAbilitiesUpdate()
-
-                        Result.SUCCESS
                     }
 
                     setVelocityUntil(Vec3d(-1.0, 0.0, 0.0)) { player.velocity.x == 0.0 }
                     setVelocityUntil(Vec3d(0.0, 0.0, -1.0)) { player.velocity.z == 0.0 }
 
-                    work {
+                    justDo {
                         player.pitch = 90.0F
-                        Result.SUCCESS
                     }
 
                     steps {
@@ -228,12 +221,16 @@ object TemplatePlacer: ModInitializer {
 
                                         setVelocityUntil(Vec3d(-1.0, 0.0, 0.0)) { player.velocity.x == 0.0 }
 
-                                        routePos = routePos.withAxis(Direction.Axis.Y, routePos.y + 5)
+                                        justDo {
+                                            routePos = routePos.withAxis(Direction.Axis.Y, routePos.y + 5)
+                                        }
 
                                         setVelocityUntil(Vec3d(0.0, 0.1, 0.0)) {player.y >= routePos.y}
 
-                                        i = 0
-                                        routePos = routePos.withAxis(Direction.Axis.X, startPos.x)
+                                        justDo {
+                                            i = 0
+                                            routePos = routePos.withAxis(Direction.Axis.X, startPos.x)
+                                        }
                                     }
                                 }
                             }

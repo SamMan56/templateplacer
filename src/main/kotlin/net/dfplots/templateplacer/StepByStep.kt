@@ -47,6 +47,10 @@ class StepByStep(val f: StepByStep.() -> Unit): Task {
     fun work(f: () -> Result) = add(Work(f))
 
     fun steps(f: StepByStep.() -> Unit) = add(StepByStep(f))
+
+    fun justDo(f: () -> Unit) {
+        work { f(); Result.SUCCESS }
+    }
 }
 
 fun Task.start() {
