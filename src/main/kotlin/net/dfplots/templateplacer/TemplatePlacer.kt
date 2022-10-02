@@ -15,6 +15,8 @@ import net.minecraft.util.hit.BlockHitResult
 import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.Direction
 import net.minecraft.util.math.Vec3d
+import kotlin.math.absoluteValue
+import kotlin.math.sign
 
 @Suppress("UNUSED")
 object TemplatePlacer: ModInitializer {
@@ -141,6 +143,31 @@ object TemplatePlacer: ModInitializer {
                     }
                 }
 
+                fun StepByStep.moveTo(to: Vec3d) {
+                    work {
+                        if ((player.x - to.x).absoluteValue > 8) {
+                            player.setPosition(player.x + ((to.x - player.x).sign * 10), player.y, player.z)
+                            Result.KEEP_TRYING
+                        } else Result.SUCCESS
+                    }
+                    work {
+                        if ((player.y - to.y).absoluteValue > 8) {
+                            player.setPosition(player.x, player.y + ((to.y - player.y).sign * 10), player.z)
+                            Result.KEEP_TRYING
+                        } else Result.SUCCESS
+                    }
+                    work {
+                        if ((player.z - to.z).absoluteValue > 8) {
+                            player.setPosition(player.x, player.y, player.z + ((to.z - player.z).sign * 10))
+                            Result.KEEP_TRYING
+                        } else Result.SUCCESS
+                    }
+                    justDo {
+                        player.setPosition(to)
+                    }
+
+                }
+
                 StepByStep {
                     send("/plot spawn")
                     send("/plot clear")
@@ -161,7 +188,7 @@ object TemplatePlacer: ModInitializer {
                     }
 
                     // get high enough
-                    setVelocityUntil(Vec3d(0.0, 0.7, 0.0)) { player.pos.y >= 51.9 }
+                    moveTo(Vec3d(player.x, 51.9, player.z))
                     justDo {
                         player.abilities.flying = true
                         player.sendAbilitiesUpdate()
@@ -192,7 +219,9 @@ object TemplatePlacer: ModInitializer {
                                 codetemplatedata != null
                             }
                             .forEach { codeItemStack ->
-                                setVelocityUntil(Vec3d(1.0, 0.0, 0.0)) {player.blockPos.x >= routePos.x}
+                                steps {
+                                    moveTo(Vec3d(routePos.x, player.y, player.z))
+                                }
                                 work {
                                     client.setScreen(CreativeInventoryScreen(player))
                                     player.inventory.setStack(player.inventory.selectedSlot, codeItemStack)
@@ -219,15 +248,11 @@ object TemplatePlacer: ModInitializer {
                                     if (i == 6) {
                                         send("/plot codespace add -c")
 
-                                        setVelocityUntil(Vec3d(-1.0, 0.0, 0.0)) { player.velocity.x == 0.0 }
+                                        moveTo(Vec3d(startPos.x, player.y, player.z))
 
-                                        justDo {
+                                        steps {
                                             routePos = routePos.withAxis(Direction.Axis.Y, routePos.y + 5)
-                                        }
-
-                                        setVelocityUntil(Vec3d(0.0, 0.7, 0.0)) {player.y >= routePos.y}
-
-                                        justDo {
+                                            moveTo(Vec3d(player.x, routePos.y, player.z))
                                             i = 0
                                             routePos = routePos.withAxis(Direction.Axis.X, startPos.x)
                                         }
